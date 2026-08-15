@@ -1,0 +1,27 @@
+[project]
+name = "tau-huggingface"
+version = "0.1.0"
+description = "Hugging Face-specific commands for Tau"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = [
+  "tau-ai @ git+https://github.com/huggingface/tau.git@feat/move-route-extension",
+]
+
+[tool.tau]
+extensions = ["extension.py"]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.15",
+  "pytest>=8.3",
+  "ruff>=0.11",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
