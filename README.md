@@ -25,7 +25,8 @@ tau -e ~/repos/tau-huggingface
 
 Commands:
 
-- `/route` — show the active Hugging Face inference-provider route.
+- `/route` — open a picker with the live Hugging Face providers available for
+  the active model.
 - `/route <provider>` — pin the active session to a route.
 - `/route automatic` — reset automatic routing; aliases: `auto`, `reset`.
 
