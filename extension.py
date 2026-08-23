@@ -17,6 +17,7 @@ _HUGGINGFACE_MODEL_API = "https://huggingface.co/api/models"
 _ROUTE_RESET_ALIASES = {"automatic", "auto", "reset"}
 _METADATA_TTL_SECONDS = 60.0
 _STATE_POLL_SECONDS = 0.5
+_MAX_VISIBLE_ROUTES = 5
 _SIDEBAR_KEY = "provider-status"
 
 
@@ -101,23 +102,38 @@ class _HuggingFaceExtension:
 
     def _content(self, metadata: _ProviderMetadata | None) -> list[str]:
         context = self.api.context
-        mode = context.inference_provider_mode
         selected = context.inference_provider
-        route = mode if selected is None else f"{mode} · {escape(selected)}"
-        lines = [
-            f"[b]model[/b] {escape(context.model)}",
-            f"[b]route[/b] {route}",
-        ]
-        if metadata is None:
-            lines.append("[b]providers[/b] [dim]loading…[/dim]")
-        elif metadata.error is not None:
-            lines.append("[b]providers[/b] [yellow]unavailable[/yellow]")
-        elif metadata.routes:
-            lines.append(
-                f"[b]providers[/b] {', '.join(escape(route) for route in metadata.routes)}"
-            )
+        if selected is None:
+            route_status = "[dim]○ automatic routing[/dim]"
         else:
-            lines.append("[b]providers[/b] [dim]none live[/dim]")
+            route_status = (
+                f"[green]●[/green] {context.inference_provider_mode} via {escape(selected)}"
+            )
+        lines = [f"[b]{escape(context.model)}[/b]", route_status]
+
+        if metadata is None:
+            return [*lines, "[dim]Loading providers…[/dim]"]
+        if metadata.error is not None:
+            return [*lines, "[yellow]Providers unavailable[/yellow]"]
+        if not metadata.routes:
+            return [*lines, "[dim]No live providers[/dim]"]
+
+        lines.append("[dim]available providers[/dim]")
+        routes = list(metadata.routes)
+        if selected in routes:
+            routes.remove(selected)
+            routes.insert(0, selected)
+        visible_routes = routes[:_MAX_VISIBLE_ROUTES]
+        for route in visible_routes:
+            if route == selected:
+                lines.append(f"[green]●[/green] {escape(route)} [dim]active[/dim]")
+            else:
+                lines.append(f"[dim]•[/dim] {escape(route)}")
+        hidden_count = len(routes) - len(visible_routes)
+        if hidden_count:
+            lines.append(f"[dim]… {hidden_count} more[/dim]")
+        if selected is not None and selected not in metadata.routes:
+            lines.append(f"[yellow]●[/yellow] {escape(selected)} [dim]not advertised[/dim]")
         return lines
 
     def _remove_sidebar(self, context: ExtensionContext | None = None) -> None:

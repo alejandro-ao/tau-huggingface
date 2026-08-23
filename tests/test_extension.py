@@ -105,6 +105,10 @@ def _execute(registry: CommandRegistry, session: FakeSession, command: str) -> C
     return registry.execute(cast(CommandSession, session), command)
 
 
+def _latest_sidebar_content(ui: RecordingUiBridge) -> tuple[str, ...]:
+    return ui.sidebar_sections[-1][-1]
+
+
 def test_route_inspects_selects_and_resets(tmp_path: Path) -> None:
     session, registry, _ = _registry(tmp_path)
 
@@ -196,17 +200,25 @@ def test_sidebar_loads_status_and_updates_route(
             "provider-status",
             "hugging face",
             (
-                "[b]model[/b] zai-org/GLM-5.2",
-                "[b]route[/b] automatic",
-                "[b]providers[/b] [dim]loading…[/dim]",
+                "[b]zai-org/GLM-5.2[/b]",
+                "[dim]○ automatic routing[/dim]",
+                "[dim]Loading providers…[/dim]",
             ),
         )
-        assert ui.sidebar_sections[-1][-1][-1] == "[b]providers[/b] deepinfra, together"
+        assert ui.sidebar_sections[-1][-1] == (
+            "[b]zai-org/GLM-5.2[/b]",
+            "[dim]○ automatic routing[/dim]",
+            "[dim]available providers[/dim]",
+            "[dim]•[/dim] deepinfra",
+            "[dim]•[/dim] together",
+        )
 
         assert _execute(registry, session, "/hf route deepinfra").message == (
             "Hugging Face route: deepinfra"
         )
-        assert ui.sidebar_sections[-1][-1][1] == "[b]route[/b] fixed · deepinfra"
+        updated_content = _latest_sidebar_content(ui)
+        assert updated_content[1] == "[green]●[/green] fixed via deepinfra"
+        assert updated_content[3] == "[green]●[/green] deepinfra [dim]active[/dim]"
         await runtime.emit_session_shutdown("quit")
 
     asyncio.run(run())
@@ -239,7 +251,7 @@ def test_sidebar_refreshes_for_model_change_and_hides_for_other_provider(
             await asyncio.sleep(0)
 
         assert fetched_models == ["zai-org/GLM-5.2", "meta-llama/Llama-4"]
-        assert ui.sidebar_sections[-1][-1][0] == "[b]model[/b] meta-llama/Llama-4"
+        assert ui.sidebar_sections[-1][-1][0] == "[b]meta-llama/Llama-4[/b]"
 
         session.provider_name = "openai"
         await runtime.emit_event(type("Event", (), {"type": "agent_start"})())
@@ -263,7 +275,7 @@ def test_sidebar_shows_metadata_failure(tmp_path: Path, monkeypatch: pytest.Monk
         await runtime.emit_session_start("startup")
         for _ in range(4):
             await asyncio.sleep(0)
-        assert ui.sidebar_sections[-1][-1][-1] == ("[b]providers[/b] [yellow]unavailable[/yellow]")
+        assert ui.sidebar_sections[-1][-1][-1] == "[yellow]Providers unavailable[/yellow]"
         await runtime.emit_session_shutdown("quit")
 
     asyncio.run(run())
@@ -285,7 +297,7 @@ def test_sidebar_shows_when_no_live_providers(
         await runtime.emit_session_start("startup")
         for _ in range(4):
             await asyncio.sleep(0)
-        assert ui.sidebar_sections[-1][-1][-1] == "[b]providers[/b] [dim]none live[/dim]"
+        assert ui.sidebar_sections[-1][-1][-1] == "[dim]No live providers[/dim]"
         await runtime.emit_session_shutdown("quit")
 
     asyncio.run(run())
