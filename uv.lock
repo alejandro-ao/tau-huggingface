@@ -673,8 +673,8 @@ wheels = [
 
 [[package]]
 name = "tau-ai"
-version = "0.3.9"
-source = { git = "https://github.com/huggingface/tau.git?rev=feat%2Fmove-route-extension#8be2fb14b1faf31deb7a3b8dae567feae2dae90d" }
+version = "0.3.13"
+source = { git = "https://github.com/huggingface/tau.git?rev=main#0f61be817e5306af382c083718bf4229b3d1d414" }
 dependencies = [
     { name = "anyio" },
     { name = "httpx", extra = ["socks"] },
@@ -703,7 +703,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "tau-ai", git = "https://github.com/huggingface/tau.git?rev=feat%2Fmove-route-extension" }]
+requires-dist = [{ name = "tau-ai", git = "https://github.com/huggingface/tau.git?rev=main" }]
 
 [package.metadata.requires-dev]
 dev = [

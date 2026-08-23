@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 dependencies = [
-  "tau-ai @ git+https://github.com/huggingface/tau.git@feat/move-route-extension",
+  "tau-ai @ git+https://github.com/huggingface/tau.git@main",
 ]
 
 [tool.tau]
