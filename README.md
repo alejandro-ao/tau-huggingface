@@ -25,10 +25,10 @@ tau -e ~/repos/tau-huggingface
 
 Commands:
 
-- `/route` — open a picker with the live Hugging Face providers available for
-  the active model.
-- `/route <provider>` — pin the active session to a route.
-- `/route automatic` — reset automatic routing; aliases: `auto`, `reset`.
+- `/hf route` — open a picker with the live Hugging Face providers available
+  for the active model.
+- `/hf route <provider>` — pin the active session to a route.
+- `/hf route automatic` — reset automatic routing; aliases: `auto`, `reset`.
 
 ## Development
 

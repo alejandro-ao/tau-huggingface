@@ -84,12 +84,13 @@ def _execute(registry: CommandRegistry, session: FakeSession, command: str) -> C
 def test_route_inspects_selects_and_resets(tmp_path: Path) -> None:
     session, registry = _registry(tmp_path)
 
-    assert _execute(registry, session, "/route").message == "Hugging Face route: automatic"
+    assert _execute(registry, session, "/hf route").message == "Hugging Face route: automatic"
     assert (
-        _execute(registry, session, "/route deepinfra").message == "Hugging Face route: deepinfra"
+        _execute(registry, session, "/hf route deepinfra").message
+        == "Hugging Face route: deepinfra"
     )
     assert session.inference_provider == "deepinfra"
-    assert _execute(registry, session, "/route reset").message == (
+    assert _execute(registry, session, "/hf route reset").message == (
         "Hugging Face route: automatic (will pin after the next successful response)"
     )
     assert session.inference_provider is None
@@ -123,7 +124,7 @@ def test_route_opens_provider_picker(tmp_path: Path, monkeypatch: pytest.MonkeyP
     session, registry = _registry(tmp_path, ui=ui)
 
     async def run_command() -> None:
-        assert _execute(registry, session, "/route").message is None
+        assert _execute(registry, session, "/hf route").message is None
         await asyncio.sleep(0)
 
     asyncio.run(run_command())
@@ -142,6 +143,6 @@ def test_route_rejects_other_tau_providers(tmp_path: Path) -> None:
     session, registry = _registry(tmp_path)
     session.provider_name = "openai"
 
-    assert _execute(registry, session, "/route").message == (
-        "/route requires the huggingface provider"
+    assert _execute(registry, session, "/hf route").message == (
+        "/hf route requires the huggingface provider"
     )

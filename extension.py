@@ -78,7 +78,7 @@ async def _choose_route(api: ExtensionAPI) -> None:
 def _route(args: str, context: ExtensionCommandContext) -> str | None:
     api = context.api
     if api.context.provider_name != "huggingface":
-        return "/route requires the huggingface provider"
+        return "/hf route requires the huggingface provider"
 
     value = args.strip()
     if not value:
@@ -95,11 +95,22 @@ def _route(args: str, context: ExtensionCommandContext) -> str | None:
     return f"Hugging Face route: {selected}"
 
 
+def _hf(args: str, context: ExtensionCommandContext) -> str | None:
+    value = args.strip()
+    if not value:
+        return "Usage: /hf route [automatic|<inference-provider>]"
+
+    command, _, command_args = value.partition(" ")
+    if command.casefold() != "route":
+        return f"Unknown /hf command: {command}. Available commands: route"
+    return _route(command_args, context)
+
+
 def setup(tau: ExtensionAPI) -> None:
     """Register Hugging Face-specific commands."""
     tau.register_command(
-        "route",
-        _route,
-        description="Show or change Hugging Face session routing.",
-        usage="/route [automatic|<inference-provider>]",
+        "hf",
+        _hf,
+        description="Hugging Face commands.",
+        usage="/hf route [automatic|<inference-provider>]",
     )
