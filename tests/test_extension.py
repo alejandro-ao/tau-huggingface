@@ -262,6 +262,58 @@ def test_sidebar_skips_unchanged_events_and_republishes_after_removal(
     asyncio.run(run())
 
 
+def test_sidebar_tracks_successful_automatic_response_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ui = RecordingUiBridge(None)
+
+    async def fake_to_thread(function: object, *args: object) -> object:
+        del function, args
+        return ("deepinfra", "together")
+
+    monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
+    session, registry, runtime = _registry(tmp_path, ui=ui)
+
+    async def run() -> None:
+        await runtime.emit_session_start("startup")
+        for _ in range(4):
+            await asyncio.sleep(0)
+
+        publication_count = len(ui.sidebar_sections)
+        message = type(
+            "Message",
+            (),
+            {"response_provider": "deepinfra", "stop_reason": "stop"},
+        )()
+        event = type("Event", (), {"type": "message_end", "message": message})()
+        await runtime.emit_event(event)
+
+        content = _latest_sidebar_content(ui)
+        assert content[1] == "[green]●[/green] automatic via deepinfra"
+        assert content[3] == "[green]●[/green] deepinfra [dim]active[/dim]"
+        assert len(ui.sidebar_sections) == publication_count + 1
+
+        await runtime.emit_event(event)
+        assert len(ui.sidebar_sections) == publication_count + 1
+
+        assert _execute(registry, session, "/hf route together").message == (
+            "Hugging Face route: together"
+        )
+        assert _latest_sidebar_content(ui)[1] == "[green]●[/green] fixed via together"
+        assert _execute(registry, session, "/hf route automatic").message == (
+            "Hugging Face route: automatic (will pin after the next successful response)"
+        )
+        assert _latest_sidebar_content(ui)[1] == "[dim]○ automatic routing[/dim]"
+
+        await runtime.emit_event(event)
+        session.model = "meta-llama/Llama-4"
+        await runtime.emit_event(type("Event", (), {"type": "agent_start"})())
+        assert _latest_sidebar_content(ui)[1] == "[dim]○ automatic routing[/dim]"
+        await runtime.emit_session_shutdown("quit")
+
+    asyncio.run(run())
+
+
 def test_sidebar_refreshes_for_model_change_and_hides_for_other_provider(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
