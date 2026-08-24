@@ -73,6 +73,7 @@ class _HuggingFaceExtension:
         self._sidebar_task: asyncio.Task[None] | None = None
         self._observer_task: asyncio.Task[None] | None = None
         self._observed_state: tuple[str, str, str, str | None] | None = None
+        self._automatic_response_route: str | None = None
         self._sidebar_render: tuple[str, tuple[str, ...]] | None = None
 
     def register(self) -> None:
@@ -104,6 +105,8 @@ class _HuggingFaceExtension:
     def _content(self, metadata: _ProviderMetadata | None) -> list[str]:
         context = self.api.context
         selected = context.inference_provider
+        if selected is None and context.inference_provider_mode == "automatic":
+            selected = self._automatic_response_route
         if selected is None:
             route_status = "[dim]○ automatic routing[/dim]"
         else:
@@ -235,6 +238,37 @@ class _HuggingFaceExtension:
             self._sidebar_task.cancel()
         self._sidebar_task = None
 
+    def _clear_response_route_for_state_change(
+        self,
+        state: tuple[str, str, str, str | None],
+    ) -> None:
+        previous = self._observed_state
+        if previous is None:
+            return
+        provider_or_model_changed = state[:2] != previous[:2]
+        mode_changed = state[2] != previous[2]
+        automatic_route_cleared = (
+            state[2] == "automatic" and previous[3] is not None and state[3] is None
+        )
+        if provider_or_model_changed or mode_changed or automatic_route_cleared:
+            self._automatic_response_route = None
+
+    def _observe_response_route(self, event: object) -> bool:
+        context = self.api.context
+        if context.provider_name != "huggingface" or context.inference_provider_mode != "automatic":
+            return False
+        message = getattr(event, "message", None)
+        if message is None or getattr(message, "stop_reason", None) == "error":
+            return False
+        route = getattr(message, "response_provider", None)
+        if not isinstance(route, str) or not route.strip():
+            return False
+        route = route.strip()
+        if route == self._automatic_response_route:
+            return False
+        self._automatic_response_route = route
+        return True
+
     async def _observe_state(self) -> None:
         while True:
             await asyncio.sleep(_STATE_POLL_SECONDS)
@@ -243,6 +277,7 @@ class _HuggingFaceExtension:
                 if state[0] == "huggingface" and self._fresh_metadata(state[1]) is None:
                     self._sync_sidebar()
                 continue
+            self._clear_response_route_for_state_change(state)
             if self._observed_state is None or state[1] != self._observed_state[1]:
                 self._invalidate_for_model_change(state[1])
             self._observed_state = state
@@ -251,6 +286,7 @@ class _HuggingFaceExtension:
     def _on_session_start(self, event: object, context: ExtensionContext) -> None:
         del event, context
         self._cancel_tasks()
+        self._automatic_response_route = None
         self._sidebar_render = None
         self._observed_state = self._state()
         self._sync_sidebar()
@@ -266,10 +302,14 @@ class _HuggingFaceExtension:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     def _on_session_state_event(self, event: object, context: ExtensionContext) -> None:
-        del event, context
+        del context
         state = self._state()
+        self._clear_response_route_for_state_change(state)
+        response_route_changed = self._observe_response_route(event)
         if state == self._observed_state:
-            if state[0] == "huggingface" and self._fresh_metadata(state[1]) is None:
+            if response_route_changed or (
+                state[0] == "huggingface" and self._fresh_metadata(state[1]) is None
+            ):
                 self._sync_sidebar()
             return
         if self._observed_state is None or state[1] != self._observed_state[1]:
@@ -309,6 +349,7 @@ class _HuggingFaceExtension:
                 return
 
             selected_route = None if selected.casefold() in _ROUTE_RESET_ALIASES else selected
+            self._automatic_response_route = None
             message = self.api.set_inference_provider(selected_route)
             self._observed_state = self._state()
             self._sync_sidebar()
@@ -335,6 +376,7 @@ class _HuggingFaceExtension:
             return None
 
         selected_route = None if value.casefold() in _ROUTE_RESET_ALIASES else value
+        self._automatic_response_route = None
         selected = api.set_inference_provider(selected_route)
         self._observed_state = self._state()
         self._sync_sidebar()
