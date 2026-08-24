@@ -13,6 +13,8 @@ from tau_coding.commands import CommandRegistry, CommandResult, CommandSession
 from tau_coding.extensions import ExtensionRuntime, NullUiBridge
 from tau_coding.resources import TauResourcePaths
 
+_EXTENSION_NAME = "tau-huggingface"
+
 
 @dataclass
 class FakeSession:
@@ -94,7 +96,7 @@ def _registry(
         extra_paths=(Path(__file__).parents[1],),
         include_resource_dirs=False,
     )
-    assert runtime.extension_names == ("huggingface",)
+    assert runtime.extension_names == (_EXTENSION_NAME,)
     assert runtime.diagnostics == ()
     session = FakeSession(tmp_path)
     runtime.bind(session)  # type: ignore[arg-type]
@@ -196,7 +198,7 @@ def test_sidebar_loads_status_and_updates_route(
             await asyncio.sleep(0)
 
         assert ui.sidebar_sections[0] == (
-            "huggingface",
+            _EXTENSION_NAME,
             "provider-status",
             "hugging face",
             (
@@ -222,7 +224,42 @@ def test_sidebar_loads_status_and_updates_route(
         await runtime.emit_session_shutdown("quit")
 
     asyncio.run(run())
-    assert ui.sidebar_removals[-1] == ("huggingface", "provider-status")
+    assert ui.sidebar_removals[-1] == (_EXTENSION_NAME, "provider-status")
+
+
+def test_sidebar_skips_unchanged_events_and_republishes_after_removal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ui = RecordingUiBridge(None)
+
+    async def fake_to_thread(function: object, *args: object) -> object:
+        del function, args
+        return ("deepinfra",)
+
+    monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
+    session, _, runtime = _registry(tmp_path, ui=ui)
+
+    async def run() -> None:
+        await runtime.emit_session_start("startup")
+        for _ in range(4):
+            await asyncio.sleep(0)
+
+        publication_count = len(ui.sidebar_sections)
+        for event_type in ("agent_start", "message_end", "agent_end"):
+            await runtime.emit_event(type("Event", (), {"type": event_type})())
+        assert len(ui.sidebar_sections) == publication_count
+
+        session.provider_name = "openai"
+        await runtime.emit_event(type("Event", (), {"type": "agent_start"})())
+        await runtime.emit_event(type("Event", (), {"type": "message_end"})())
+        assert ui.sidebar_removals == [(_EXTENSION_NAME, "provider-status")]
+
+        session.provider_name = "huggingface"
+        await runtime.emit_event(type("Event", (), {"type": "agent_start"})())
+        assert len(ui.sidebar_sections) == publication_count + 1
+        await runtime.emit_session_shutdown("quit")
+
+    asyncio.run(run())
 
 
 def test_sidebar_refreshes_for_model_change_and_hides_for_other_provider(
@@ -255,7 +292,7 @@ def test_sidebar_refreshes_for_model_change_and_hides_for_other_provider(
 
         session.provider_name = "openai"
         await runtime.emit_event(type("Event", (), {"type": "agent_start"})())
-        assert ui.sidebar_removals[-1] == ("huggingface", "provider-status")
+        assert ui.sidebar_removals[-1] == (_EXTENSION_NAME, "provider-status")
         await runtime.emit_session_shutdown("quit")
 
     asyncio.run(run())
