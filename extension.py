@@ -73,6 +73,7 @@ class _HuggingFaceExtension:
         self._sidebar_task: asyncio.Task[None] | None = None
         self._observer_task: asyncio.Task[None] | None = None
         self._observed_state: tuple[str, str, str, str | None] | None = None
+        self._sidebar_render: tuple[str, tuple[str, ...]] | None = None
 
     def register(self) -> None:
         self.api.register_command(
@@ -137,6 +138,9 @@ class _HuggingFaceExtension:
         return lines
 
     def _remove_sidebar(self, context: ExtensionContext | None = None) -> None:
+        if self._sidebar_render is None:
+            return
+        self._sidebar_render = None
         sidebar = self._sidebar(context)
         if sidebar is None:
             return
@@ -151,11 +155,13 @@ class _HuggingFaceExtension:
         set_section = getattr(sidebar, "set_section", None)
         if set_section is None:
             return False
-        set_section(
-            _SIDEBAR_KEY,
-            title="hugging face",
-            content=self._content(metadata),
-        )
+        title = "hugging face"
+        content = tuple(self._content(metadata))
+        render = (title, content)
+        if render == self._sidebar_render:
+            return True
+        set_section(_SIDEBAR_KEY, title=title, content=content)
+        self._sidebar_render = render
         return True
 
     def _sync_sidebar(self) -> None:
@@ -245,6 +251,7 @@ class _HuggingFaceExtension:
     def _on_session_start(self, event: object, context: ExtensionContext) -> None:
         del event, context
         self._cancel_tasks()
+        self._sidebar_render = None
         self._observed_state = self._state()
         self._sync_sidebar()
         sidebar = self._sidebar()
@@ -261,6 +268,10 @@ class _HuggingFaceExtension:
     def _on_session_state_event(self, event: object, context: ExtensionContext) -> None:
         del event, context
         state = self._state()
+        if state == self._observed_state:
+            if state[0] == "huggingface" and self._fresh_metadata(state[1]) is None:
+                self._sync_sidebar()
+            return
         if self._observed_state is None or state[1] != self._observed_state[1]:
             self._invalidate_for_model_change(state[1])
         self._observed_state = state
